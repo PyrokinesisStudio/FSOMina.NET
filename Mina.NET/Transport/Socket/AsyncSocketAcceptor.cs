@@ -18,7 +18,6 @@ namespace Mina.Transport.Socket
 
         const Int32 opsToPreAlloc = 2;
         private BufferManager _bufferManager;
-        private Pool<SocketAsyncEventArgsBuffer> _readWritePool;
 
         /// <summary>
         /// Instantiates with default max connections of 1024.
@@ -64,7 +63,6 @@ namespace Mina.Transport.Socket
 
                     readWriteEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(readWriteEventArg_Completed);
                 }
-                _readWritePool = new Pool<SocketAsyncEventArgsBuffer>(list);
             }
         }
 
@@ -93,16 +91,11 @@ namespace Mina.Transport.Socket
         private void OnSessionDestroyed(Object sender, IoSessionEventArgs e)
         {
             AsyncSocketSession s = e.Session as AsyncSocketSession;
-            if (s != null && _readWritePool != null)
+            if (s != null)
             {
                 // clear the buffer and reset its count to original capacity if changed
-                s.ReadBuffer.Clear();
-                s.ReadBuffer.SetBuffer();
-                _readWritePool.Push(s.ReadBuffer);
-
-                s.WriteBuffer.Clear();
-                s.WriteBuffer.SetBuffer();
-                _readWritePool.Push(s.WriteBuffer);
+                s.ReadBuffer.Dispose();
+                s.WriteBuffer.Dispose();
             }
         }
 
@@ -158,8 +151,8 @@ namespace Mina.Transport.Socket
         /// <inheritdoc/>
         protected override IoSession NewSession(IoProcessor<SocketSession> processor, System.Net.Sockets.Socket socket)
         {
-            SocketAsyncEventArgsBuffer readBuffer = _readWritePool.Pop();
-            SocketAsyncEventArgsBuffer writeBuffer = _readWritePool.Pop();
+            SocketAsyncEventArgsBuffer readBuffer = null;
+            SocketAsyncEventArgsBuffer writeBuffer = null;
 
             if (readBuffer == null)
             {
